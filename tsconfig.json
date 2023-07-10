@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+	"outDir": "/home/rule/Documents/Test Vault/.obsidian/plugins/Test",
+	"watch":true,
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
