@@ -23,7 +23,8 @@ To get started with the Mythic Game Emulator, follow these steps:
 1. **Installation**: Clone the repository or download the latest release from the [Mythic Game Emulator GitHub page](https://github.com/Ruleofnine/MGE_Obsidian).
 
 ## Source
-with this plugin for obvious reasons I'm not going to go into detail about how to use the Mythic Game Emulator V2, if you wish to know the rules, or find the original creators of MGE you can visit the [World Mill Games](https://www.wordmillgames.com/mythic-gme.html) website. 
+with this plugin for obvious reasons I'm not going to go into detail about how to use the Mythic Game Emulator V2, if you wish to know the rules, or find the original creators of MGE you can visit the [World Mill Games](https://www.wordmillgames.com/mythic-variations-2.html) website. 
+Right after I just finshed coding this i realzie theres a  [Mythic Game Emulator Second Edition](https://www.drivethrurpg.com/product/422929/Mythic-Game-Master-Emulator-Second-Edition) that came out not that long ago, so I guess I'll go make that one now...
 
 
 
