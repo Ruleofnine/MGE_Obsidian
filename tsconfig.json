@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-	"outDir": "/home/rule/Documents/Test Vault/.obsidian/plugins/Test",
-	"watch":true,
+    "outDir": "/home/rule/Documents/Test Vault/.obsidian/plugins/Test",
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
@@ -12,15 +11,12 @@
     "moduleResolution": "node",
     "importHelpers": true,
     "isolatedModules": true,
-	"strictNullChecks": true,
-    "lib": [
-      "DOM",
-      "ES5",
-      "ES6",
-      "ES7"
-    ]
+    "strictNullChecks": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "lib": ["DOM", "ES5", "ES6", "ES7"]
   },
-  "include": [
-    "**/*.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
+

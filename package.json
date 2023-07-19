@@ -1,7 +1,7 @@
 {
 	"name": "mythic_emulator",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "The TTRPG Mythic Game Emulator V2",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
