@@ -40,16 +40,13 @@ function calculateButtonPadding(button: HTMLButtonElement) {
 		const paddingSides = `${textLength}px`; // Adjust the multiplier as needed
 		button.style.setProperty('--tooltip-padding-left', paddingSides);
 		button.style.setProperty('--tooltip-padding-right', paddingSides);
-		// button.style.setProperty('--tooltip-padding-bottom', paddingBottom);
 		return paddingSides
 	}
 }
-
 function getRandomElement<T>(list: T[]): T {
 	const randomIndex = Math.floor(Math.random() * list.length);
 	return list[randomIndex];
 }
-
 
 export class MythicView extends ItemView {
 	results: string[] = [];
@@ -140,9 +137,6 @@ export class MythicView extends ItemView {
 		fatecheckHeader.setText("Fate Check");
 		const dropdown = document.createElement('select');
 		dropdown.className = 'tooltip-enabled';
-		dropdown.setAttribute("data-title", "Odds");
-		// dropdownlabel.style.fontWeight = 'bold';
-		// dropdownlabel.style.marginRight = '10px'
 		const dropdownContainer = document.createElement('div');
 		dropdownContainer.style.position = 'relative';
 		const options = { '50/50 or Unsure': 0, 'Likely': 2, 'Unlikely': -2, 'Very Likely': 4, 'Very Unlikely': -4, 'Sure Thing': 6, 'No Way': -6, 'Has to Be': 8, 'Impossible': -8 }; Object.entries(options).forEach(([optionText, numericValue]) => {
@@ -173,7 +167,7 @@ export class MythicView extends ItemView {
 
 		this.containerEl.children[1].appendChild(fateCheckContainer)
 		const chaosFactor_num = this.chaosFactor_num;
-		rollButton.addEventListener('click', () => { //The Roll Button Event
+		rollButton.addEventListener('click', () => { 
 			let roll_result = "";
 			let chaos_mod = 0;
 			if (chaosFactor_num == 3) {
@@ -191,38 +185,29 @@ export class MythicView extends ItemView {
 				else {
 					chaos_mod = 2
 				}
-
 			}
-			let die1 = randomInt(1, 10);
-			let die2 = randomInt(1, 10);
-			let chaos_die = randomInt(1, 10);
+			let die1 = randomInt(1, 11);
+			let die2 = randomInt(1, 11);
+			let chaos_die = randomInt(1, 11);
 			let result = (die2 + die1 + parseInt(dropdown.value) + chaos_mod)
-			// console.log(die1, die2, dropdown.value, chaos_mod)
-			// console.log(checkbox.checked);
-			// console.log(result);
 
 
 			if (chaosFactor_num >= chaos_die) {
 				if (die1 === die2) {
-					// console.log('Execptional and Radom Event');
 				}
 				else if (die1 % 2 === 0 && die2 % 2 === 0) {
 					const event = this.eventRoll();
 					roll_result = event + "  " + roll_result
 				} else if (die1 % 2 === 1 && die2 % 2 === 1) {
-					// console.log('Execptional');
 					roll_result += "Execptional "
 
 				} else {
-					// console.log('Nothing Happens');
 				}
 			}
 			if (result >= 11) {
-				// console.log('yes')
 				roll_result += "Yes"
 			}
 			else {
-				// console.log('no')
 				roll_result += "No"
 			}
 			this.storeResult(roll_result);
@@ -360,7 +345,6 @@ export class MythicView extends ItemView {
 		resultContainer.appendChild(line)
 		resultContainer.style.border = '10px'
 		resultContainer.style.borderColor = "#fff"
-		// resultContainer.style.marginTop = '200px'
 		this.containerEl.children[1].appendChild(resultContainer)
 		resultButton.addEventListener('click', () => {
 			this.clearList()
@@ -394,7 +378,7 @@ export class MythicView extends ItemView {
 
 			return "Invalid roll. The roll should be between 1 and 100.";
 		}
-		const rolledNumber = randomInt(1, 100)
+		const rolledNumber = randomInt(1, 101)
 		const selectedEvent = selectEvent(rolledNumber);
 		const meaning1 = getRandomElement(descriptorList1);
 		const meaning2 = getRandomElement(descriptorList2);
@@ -430,7 +414,6 @@ export class MythicView extends ItemView {
 			const meaning1 = getRandomElement(descriptorList1);
 			const meaning2 = getRandomElement(descriptorList2);
 			const detailAndMeaning = detail + "  " + meaning1 + " " + meaning2;
-			console.log(detailAndMeaning)
 			this.storeResult(detailAndMeaning)
 		}
 		else if (value === "Meaning"){
@@ -476,7 +459,7 @@ export class MythicView extends ItemView {
 		} else {
 			mod = 0
 		}
-		const roll = randomInt(1, 10) + randomInt(1, 10) + mod;
+		const roll = randomInt(1, 11) + randomInt(1, 11) + mod;
 		const emotion = this.checkDetail(roll);
 		return emotion
 	}
@@ -504,7 +487,6 @@ export class MythicView extends ItemView {
 		rollButton.setAttribute("data-title", "Roll Detail Check!")
 		rollButton.addClass("right-button")
 		event_title.className = 'button-title'
-		console.log('test')
 		rollButton.addEventListener('click', () => {
 			this.runDetailCheckButton();
 		})
@@ -513,7 +495,7 @@ export class MythicView extends ItemView {
 	}
 	statisticCheck(mod: number) {
 
-		const rollResult = randomInt(1, 10) + randomInt(1, 10) + mod;
+		const rollResult = randomInt(1, 11) + randomInt(1, 11) + mod;
 		const percentageRanges: { range: [number, number]; event: string }[] = [
 			{ range: [0, 2], event: "VERY WEAK -75%" },
 			{ range: [3, 4], event: "WEAK -50%" },
@@ -540,11 +522,10 @@ export class MythicView extends ItemView {
 
 	drawStatisticCheck() {
 		const dropdown = document.createElement('select');
-		// dropdown.style.position = 'flex'
 		const dropdownlabel = document.createElement('h6');
 		dropdownlabel.textContent = 'Statistic Check'
-		// const dropdownContainer = document.createElement('div')/* ; */
-		const options = { "Important NPC": 2, "Weak Attribute": -2, "Strong Attribute": 2, "Prime Attribute": 4 }; Object.entries(options).forEach(([optionText, numericValue]) => {
+		const options = { "Important NPC": 2, "Weak Attribute": -2, "Strong Attribute": 2, "Prime Attribute": 4 }; 
+		Object.entries(options).forEach(([optionText, numericValue]) => {
 			const option = document.createElement('option');
 			option.textContent = optionText;
 			option.value = numericValue.toString();
@@ -601,7 +582,6 @@ export class MythicView extends ItemView {
 			display.style.backgroundColor = 'red';
 		}
 
-
 	}
 	drawBehaviorCheck() {
 		const app = this;
@@ -655,12 +635,10 @@ export class MythicView extends ItemView {
 		event_title.className = 'button-title';
 		rollButton.addEventListener('click', () => {
 			app.behaviorCheck()
-
-
 		})
 
 		dispositionButton.addEventListener("click", function() {
-			app.updateDisplay(randomInt(2, 20), '.input-disposition')
+			app.updateDisplay(randomInt(2, 21), '.input-disposition')
 			app.updateDispositionDisplay(dispositionLabel)
 		});
 		dispotionContainer.appendChild(dispositionButton)
@@ -672,7 +650,7 @@ export class MythicView extends ItemView {
 
 	}
 	behaviorCheck() {
-		const roll = randomInt(1, 10);
+		const roll = randomInt(1, 11);
 		for (const option of npcActionTable1) {
 			const [min, max] = option.range;
 			if (roll >= min && roll <= max) {
@@ -693,7 +671,7 @@ export class MythicView extends ItemView {
 				if (action.contains("NPC Action")) {
 					let [mod, _] = this.getStance()
 					mod = mod as number;
-					const roll = randomInt(2, 20) + mod;
+					const roll = randomInt(1, 11) + randomInt(1,11) + mod;
 					for (const option of npcActionTable2) {
 						const [min, max] = option.range;
 						if (roll >= min && roll <= max) {
@@ -701,14 +679,9 @@ export class MythicView extends ItemView {
 							this.storeResult(action)
 						}
 					}
-
-
-
 				}
 			}
 		}
-
-
 	}
 	async onOpen() {
 		const container = this.containerEl.children[1];
@@ -720,14 +693,9 @@ export class MythicView extends ItemView {
 		this.drawStatisticCheck();
 		this.drawBehaviorCheck();
 		this.drawResultsList();
-
-
 	}
-
 	async onClose() {
 		// Nothing to clean up.
 	}
-
-
 }
 
