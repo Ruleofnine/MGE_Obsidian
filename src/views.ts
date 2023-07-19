@@ -275,8 +275,6 @@ export class MythicView extends ItemView {
 		itemEl.appendChild(deleteButton);
 		this.listEl.appendChild(itemEl);
 		this.listEl.style.marginTop = '-23px';
-
-
 	}
 	drawCFInput() {
 		const container = this.containerEl.children[1]
@@ -447,8 +445,6 @@ export class MythicView extends ItemView {
 		const result = emotions[roll] || (roll >= 18 ? "CALM" : "ANGER")
 		return result
 	}
-
-
 	detailCheck(): string {
 		const chaosFactor_num = this.chaosFactor_num;
 		let mod;
