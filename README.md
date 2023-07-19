@@ -15,13 +15,17 @@ The Mythic Game Emulator is a powerful tool for generating dynamic and engaging 
 - **Random Event Tables**: Access a rich collection of random event tables to inject variety and excitement into your game sessions.
 - **Adaptable Rules**: Customize and adapt the rules to suit your preferred game system and playstyle.
 
+
 ## Getting Started
 
 To get started with the Mythic Game Emulator, follow these steps:
 
 1. **Installation**: Clone the repository or download the latest release from the [Mythic Game Emulator GitHub page](https://github.com/Ruleofnine/MGE_Obsidian).
 
-3. **Configuration**: Customize the emulator settings according to your preferences. Refer to the configuration guide in the documentation.
+## Source
+with this plugin for obvious reasons I'm not going to go into detail about how to use the Mythic Game Emulator V2, if you wish to know the rules, or find the original creators of MGE you can visit the [World Mill Games](https://www.wordmillgames.com/mythic-gme.html) website. 
+
+
 
 
 

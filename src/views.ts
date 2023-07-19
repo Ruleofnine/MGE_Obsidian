@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Plugin, App } from 'obsidian';
+import { ItemView, WorkspaceLeaf} from 'obsidian';
 import { randomInt } from 'crypto';
 import actionList1 from 'JSONS/actions1.json'
 import actionList2 from 'JSONS/actions2.json'
@@ -51,17 +51,6 @@ function getRandomElement<T>(list: T[]): T {
 }
 
 
-function adjustTooltipPosition(tooltip: HTMLElement) {
-	const tooltipRect = tooltip.getBoundingClientRect();
-	const tooltipWidth = tooltipRect.width;
-	const tooltipLeft = tooltipRect.left;
-
-	// Adjust tooltip position if it exceeds viewport boundaries
-	if (tooltipLeft + tooltipWidth > window.innerWidth) {
-		tooltip.style.left = 'auto';
-		tooltip.style.right = '0';
-	}
-}
 export class MythicView extends ItemView {
 	results: string[] = [];
 	chaosFactor_num: number = 3;
