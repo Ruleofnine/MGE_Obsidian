@@ -1,4 +1,4 @@
-import { Plugin, addIcon } from 'obsidian';
+import { Plugin, addIcon,App,PluginSettingTab,Setting } from 'obsidian';
 import { MYTHIC_VIEW, MythicView } from "./views";
 const iconSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 90">
@@ -6,10 +6,23 @@ const iconSvg = `
   </svg>
 `;
 
+interface MGEPluginSettings {
+	epubDir: string;
+}
+
+const DEFAULT_SETTINGS: MGEPluginSettings = {
+	epubDir: "epubs" // default relative to vault
+};
 export default class MGE extends Plugin {
 	statusBarTextElement: HTMLSpanElement;
+	settings: MGEPluginSettings;
 	async onload() {
 		console.log("Mythic Game Emulator(Version 2) plugin loaded")
+		// Load settings
+		await this.loadSettings();
+
+		// Add settings tab
+		this.addSettingTab(new MGEPluginSettingTab(this.app, this));
 		const faScript = document.createElement('script');
 		faScript.src = 'https://kit.fontawesome.com/8d28eaccd0.js';
 		faScript.crossOrigin = 'anonymous';
@@ -24,11 +37,19 @@ export default class MGE extends Plugin {
 		addIcon('M', iconSvg);
 		this.registerView(
 			MYTHIC_VIEW,
-			(leaf) => new MythicView(leaf)
+			(leaf) => new MythicView(leaf,this)
 		);
 		this.addRibbonIcon("M", "Mythic Game Emulator", () => {
 			this.activateView();
 		});
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
 	}
 	async onunload() {
 		this.app.workspace.detachLeavesOfType(MYTHIC_VIEW);
@@ -45,3 +66,29 @@ export default class MGE extends Plugin {
 	}
 }
 
+class MGEPluginSettingTab extends PluginSettingTab {
+	plugin: MGE;
+
+	constructor(app: App, plugin: MGE) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+
+		containerEl.createEl("h2", { text: "Mythic Game Emulator Settings" });
+
+		new Setting(containerEl)
+			.setName("EPUB Directory")
+			.setDesc("Folder path for your EPUB files (can be in or outside the vault).")
+			.addText(text => text
+				.setPlaceholder("epubs")
+				.setValue(this.plugin.settings.epubDir)
+				.onChange(async (value) => {
+					this.plugin.settings.epubDir = value.trim();
+					await this.plugin.saveSettings();
+				}));
+	}
+}

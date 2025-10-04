@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "commonjs",
+    "rootDir": "..",
+    "outDir": "dist",
+    "lib": ["esnext"],        // 🚀 no DOM here
+    "types": ["node"],        // 🚀 pull in Node types only
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "sim/**/*.ts",
+    "../src/lib/types.ts",
+    "../src/systems/chaosEngine.ts"
+  ]
+}
+

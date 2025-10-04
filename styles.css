@@ -31,6 +31,24 @@
     .custom-dropdown:hover .tooltip {
       display: block;
     }
+
+.mge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* label left, selects right */
+  margin: 10px 0;
+}
+
+.mge-inline-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;                     /* ← spacing between the two dropdowns */
+}
+
+.cf-dropdown, .trend-dropdown {
+  height: 28px;                 /* optional: consistent height */
+  padding: 2px 6px;
+}
 .button-title{
   box-sizing: content-box; /* Set the box-sizing to content-box */
   display: flex;
@@ -57,6 +75,7 @@
   border: 2px solid grey;
   padding: 20px;
   margin-bottom: 5px;
+  overflow:visible;
 }
 .my-list-item::before {
   position: absolute;
@@ -103,43 +122,117 @@ button {
   text-overflow: ellipsis;
   z-index: 999;
   visibility: hidden;
-  white-space: nowrap; /* Prevent line breaks */
+  white-space: pre-line; /* Prevent line breaks */
 }
 
-.tooltip-enabled:hover::before {
-  visibility: visible;
-  width: max-content; /* Adjust the width to span the content */
-  transform: translateX(-50%) translateX(-4px); /* Adjust the positioning */
-  opacity: 0;
-  animation: tooltipFadeIn .1s forwards; /* Start the animation on hover and maintain the final state */
-/* Define the animation */
+.tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #000;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  z-index: 999;
+  white-space: normal;  /* <-- allow wrapping & multiple lines */
+  min-width: 150px;
+  max-width: 250px;
+  text-align: left;
+  pointer-events: none;
 }
+
+button:hover .tooltip {
+  display: block;
+}
+
 @keyframes tooltipFadeIn {
   0% { opacity: 0; } /* Start with opacity 0 */
-  99% { opacity: 0; } /* Stay invisible until 99% of the animation duration */
+  50% { opacity: .5; } /* Stay invisible until 99% of the animation duration */
+  99% { opacity: .75; } /* Stay invisible until 99% of the animation duration */
   100% { opacity: 1; } /* Instantly become fully visible at the end of the animation */
 
-.tooltip-enabled::before {
-  /* Add additional styles to handle tooltip positioning */
-  max-width: 200px; /* Limit the width of the tooltip */
-  pointer-events: none; /* Allow interactions with the button underneath */
+.results-header { background: rgba(255, 0, 0, 0.2); }
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.results-title {
+  font-size: 23px;
+  font-weight: bold;
 }
 
 
-.tooltip-enabled::before {
-  /* Adjust tooltip position if it exceeds viewport boundaries */
-  bottom: calc(100% + 8px); /* Position the tooltip above the button */
-  transform: translateX(-50%);
+/* ===========================================================
+   BUTTON TOOLTIP (for icons, copy/delete, etc.)
+   =========================================================== */
+button.tooltip-enabled::before {
+  content: attr(data-title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background-color: #000;
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1.2;
+  opacity: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  z-index: 9999;
+  transition: opacity 0.1s ease-in-out;
+}
+
+button.tooltip-enabled:hover::before {
+  opacity: 1;
+  visibility: visible;
 }
 
 
-.tooltip-enabled {
+/* ===========================================================
+   RESULT TOOLTIP (for <li> fate check results)
+   =========================================================== */
+.my-list-item {
   position: relative;
-  /* Add specific styles for the enabled buttons */
+  overflow: visible;
 }
 
-.tooltip-disabled:hover {
-  /* visibility: invisible; */
-  /* Add specific styles for the disabled buttons */
+/* hidden tooltip */
+.mge-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;               /* or top:100% for below */
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  z-index: 9999;
+  white-space: pre;
+  min-width: 180px;
+  max-width: 260px;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+/* visible only while hovering */
+.my-list-item:hover .mge-tooltip {
+  display: block;
+  opacity: 1;
 }
 

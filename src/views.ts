@@ -1,9 +1,15 @@
-import { ItemView, WorkspaceLeaf} from 'obsidian';
+import { ItemView, WorkspaceLeaf } from 'obsidian';
+import type MGE from "./main";
+import * as sp from "./systems/sentencePicker";
+import { ChaosFactor, Tension, Probability, OracleState, ChaosEngineSettings } from "./lib/types";
+import { RollResult, RollResolver, Exceptional, rollOdds, ProbabilityUtils } from './systems/chaosEngine';
+import * as path from "path";
 import { randomInt } from 'crypto';
 import actionList1 from 'JSONS/actions1.json'
 import actionList2 from 'JSONS/actions2.json'
 import descriptorList1 from 'JSONS/descriptors1.json';
 import descriptorList2 from 'JSONS/descriptors2.json';
+import { loadSettings, saveSettings } from './lib/storage';
 const dispRanges: { range: [number, number]; stance: string, mod: number }[] = [
 	{ range: [-100, 5], stance: "Passive", mod: -2 },
 	{ range: [6, 10], stance: "Moderate", mod: 0 },
@@ -32,7 +38,43 @@ const npcActionTable2: { range: [number, number]; action: string }[] = [
 	{ range: [19, 99], action: "Causes Harm" },
 ];
 
+const prob_options: Record<string, Probability> = {
+	'Inevitable': Probability.Inevitable,
+	'Certain': Probability.Certain,
+	'Has to Be': Probability.HasToBe,
+	'Sure Thing': Probability.SureThing,
+	'Probable': Probability.Probable,
+	'Likely': Probability.Likely,
+	'50/50': Probability._5050,
+	'Unlikely': Probability.Unlikely,
+	'Dubious': Probability.Dubious,
+	'No Way': Probability.NoWay,
+	'Ridiculous': Probability.Ridiculous,
+	'Impossible': Probability.Impossible,
+	'Unfathomable': Probability.Unfathomable
+};
+const chaos_options: Record<string, ChaosFactor> = {
+	'Peaceful': ChaosFactor.Peaceful,
+	'Serene': ChaosFactor.Serene,
+	'Calm': ChaosFactor.Calm,
+	'Stable': ChaosFactor.Stable,
+	'Chaotic': ChaosFactor.Chaotic,
+	'Havoc': ChaosFactor.Havoc,
+	'Pandemonium': ChaosFactor.Pandemonium
+};
+const tension_options: Record<string, Tension> = {
+	'Locked In': Tension.LockedIn,
+	'Under Control': Tension.UnderControl,
+	'Coasting': Tension.Coasting,
+	'Neutral': Tension.Neutral,
+	'Tense': Tension.Tense,
+	'Getting Crazy': Tension.GettingCrazy,
+	'Full Tilt': Tension.FullTilt
+};
+
 export const MYTHIC_VIEW = "mythic view";
+
+
 function calculateButtonPadding(button: HTMLButtonElement) {
 	const textContent = button.getAttribute('data-title');
 	if (textContent) {
@@ -48,14 +90,85 @@ function getRandomElement<T>(list: T[]): T {
 	return list[randomIndex];
 }
 
+function formatExceptionalResult(exceptional: Exceptional | null, yes: boolean): string {
+	if (!exceptional) return yes ? "Yes" : "No";
+
+	const yesPhrases = {
+		major: [
+			"An overwhelming YES!",
+			"Reality itself bends toward YES!",
+			"Fate shouts YES!",
+			"Yes — The signs point clearly.",
+			"A remarkable YES!",
+			"YES — and the world echoes it back!",
+			"Reality SHUDDERS in aggreement.",
+			"An overwhelming YES, written in the stars.",
+			"Yes — completely and utterly, without doubt.",
+			"Fate declares it so.",
+			"The universe bends towards Yes."
+		],
+		minor: [
+			"The pattern resolves into a clear yes.",
+			"Yes, in ways subtle, but undeniable.",
+			"A gentle but certain affirmation.",
+			"Yes — almost if by coincidence?",
+			"The omens whisper YES.",
+			"Yes, softly but surely.",
+			"Yes — fate itself cannot resist."
+
+		]
+	};
+
+	const noPhrases = {
+		major: [
+			"NO — and the heavens recoil!",
+			"No — Fate forbids it.",
+			"An absolute NO!",
+			"No — Fate slams the door shut!",
+			"A crushing denial!",
+			"Not in this lifetime!",
+			"The universe recoils — NO!",
+			"The world turns with cold refusal.",
+			"All forces align in denial.",
+			"The answer is aboslute: NO"
+		],
+		minor: [
+			"Definetly NOT!",
+			"A grim NO.",
+			"No — The signs do not support it.",
+			"No — it feels wrong... and fate agrees."
+		]
+	};
+
+	const pool = yes
+		? exceptional === Exceptional.Major ? yesPhrases.major : yesPhrases.minor
+		: exceptional === Exceptional.Major ? noPhrases.major : noPhrases.minor;
+
+	const phrase = pool[Math.floor(Math.random() * pool.length)];
+	return phrase;
+}
+
+
 export class MythicView extends ItemView {
-	results: string[] = [];
-	chaosFactor_num: number = 3;
+	plugin: MGE;
+	results: { text: string; tooltip?: string }[] = [];
+	resultsContainer: HTMLElement;
 	private listEl: HTMLUListElement;
-	constructor(leaf: WorkspaceLeaf) {
+	private cfSelect!: HTMLSelectElement;
+	private trendSelect!: HTMLSelectElement;
+	private probSelect!: HTMLSelectElement;
+	private rollButton!: HTMLButtonElement;
+	constructor(leaf: WorkspaceLeaf, plugin: MGE) {
 		super(leaf);
+		this.plugin = plugin;
+	}
+	getChaosValue(): number {
+		return Number(this.cfSelect?.value ?? 0);
 	}
 
+	getTrendValue(): number {
+		return Number(this.trendSelect?.value ?? 0);
+	}
 
 	getViewType() {
 		return MYTHIC_VIEW;
@@ -68,9 +181,53 @@ export class MythicView extends ItemView {
 		return "M"
 
 	}
-	storeResult(result: string): void {
-		this.results.push(result);
-		this.drawList(); // Refresh the list to reflect the updated results
+
+
+	getCurrentState(): OracleState {
+		return {
+			probability: this.probSelect.value as Probability,
+			cf: this.cfSelect.value as ChaosFactor,
+			tension: this.trendSelect.value as Tension,
+		};
+	}
+
+	updateTooltip() {
+		const state = this.getCurrentState();
+		const odds = rollOdds(state);
+
+		const tooltipHtml = `
+		<div style="color:#4CAF50"><b>Yes:</b> ${(odds.yes * 100).toFixed(2)}%</div>
+		<div style="color:#F44336"><b>No:</b> ${(odds.no * 100).toFixed(2)}%</div>
+		<div style="color:#FFD700"><b>(Major) Yes:</b> ${((odds.excMajorYes) * 100).toFixed(2)}%</div>
+		<div style="color:#FFD700"><b>(Minor) Yes:</b> ${((odds.excMinorYes) * 100).toFixed(2)}%</div>
+		<div style="color:#FF9800"><b>(Major) No:</b> ${((odds.excMajorNo) * 100).toFixed(2)}%</div>
+		<div style="color:#FF9800"><b>(Minor) No:</b> ${((odds.excMinorNo) * 100).toFixed(2)}%</div>
+		<div style="color:#00BCD4"><b>Event:</b> ${(odds.event * 100).toFixed(2)}%</div>
+	`;
+
+		if (this.rollButton) {
+			const tooltip = this.rollButton.querySelector(".tooltip") as HTMLElement;
+			if (tooltip) {
+				tooltip.innerHTML = tooltipHtml;
+			}
+		}
+	}
+
+
+	storeResult(result: string | { text: string; tooltip?: string }) {
+		let to_copy: string;
+		if (typeof result === "string") {
+			console.log();
+			this.results.push({ text: result });
+			to_copy = result;
+		} else {
+			this.results.push(result);
+			to_copy = result.text;
+		}
+
+		navigator.clipboard.writeText(to_copy);
+		console.log(`Copied: ${to_copy}`);
+		this.drawList();
 	}
 	addFooter(el: Element) {
 		const currentTime = new Date().toLocaleString(); // Get the current time in a suitable format
@@ -86,11 +243,9 @@ export class MythicView extends ItemView {
 		})
 	}
 	private clearList(): void {
-		this.deleteList()
-		while (this.listEl.firstChild) {
-			this.listEl.firstChild.remove();
-		}
-		this.noResults()
+		this.results = [];
+		this.listEl.empty();
+		this.noResults();
 	}
 	noResults() {
 		this.listEl.empty()
@@ -98,143 +253,240 @@ export class MythicView extends ItemView {
 		emptyStateEl.textContent = 'No results available.';
 		this.listEl.appendChild(emptyStateEl);
 	}
+
+	drawFateCheck(settings: ChaosEngineSettings) {
+		const fateCheckContainer = document.createElement('div');
+		const fatecheckHeader = document.createElement("h6");
+		fateCheckContainer.appendChild(fatecheckHeader);
+		fatecheckHeader.setText("Fate Check");
+
+		// Dropdown for Probability
+		const dropdown = document.createElement('select');
+		this.probSelect = dropdown;
+		dropdown.className = 'tooltip-enabled';
+		Object.entries(prob_options).forEach(([label, prob]) => {
+			const option = document.createElement('option');
+			option.textContent = label;
+			option.value = prob;
+			if (prob === settings.probChoice) option.selected = true; // restore saved
+			dropdown.appendChild(option);
+		});
+
+		// Checkbox
+		const checkbox = document.createElement('input');
+		checkbox.type = 'checkbox';
+		checkbox.id = 'my-checkbox';
+		checkbox.style.marginLeft = '5px';
+		checkbox.setAttribute("data-title", "Advanced Fatecheck(and,but,numerology)");
+		checkbox.classList.add('tooltip-enabled');
+		checkbox.checked = settings.advanced ?? false; // restore saved
+		// Roll button
+		const rollButton = document.createElement('button');
+		const diceIcon = document.createElement('i');
+		diceIcon.className = 'fa-solid fa-dice-d20 icon';
+		rollButton.appendChild(diceIcon);
+		const tooltip = document.createElement("div");
+		tooltip.className = "tooltip";
+		rollButton.appendChild(tooltip);
+		rollButton.classList.add("tooltip-enabled", "right-button");
+		this.rollButton = rollButton;
+		// Save on change
+		dropdown.addEventListener("change", async () => {
+			this.updateTooltip();
+			settings.probChoice = dropdown.value as Probability;
+			await saveSettings(this.plugin, settings);
+		});
+		checkbox.addEventListener("change", async () => {
+			settings.advanced = checkbox.checked;
+			await saveSettings(this.plugin, settings);
+		});
+
+
+		fatecheckHeader.className = 'button-title';
+		dropdown.style.marginRight = '10px';
+		fatecheckHeader.appendChild(checkbox);
+		fatecheckHeader.appendChild(dropdown);
+		fatecheckHeader.appendChild(rollButton);
+
+		this.containerEl.children[1].appendChild(fateCheckContainer);
+
+		// On click: run roll
+		rollButton.addEventListener('click', () => {
+			const state: OracleState = {
+				probability: dropdown.value as Probability,
+				cf: this.cfSelect.value as ChaosFactor,
+				tension: this.trendSelect.value as Tension,
+			};
+			let mainRoll = RollResult.rollD1000();
+			let shadowRoll = RollResult.rollD1000();
+			let resolved_roll = RollResolver.resolveRoll(state, shadowRoll, mainRoll);
+			const resultText = formatExceptionalResult(resolved_roll.exceptional, resolved_roll.yes);
+			let output = resultText;
+
+
+			if (resolved_roll.eventTriggered) {
+				output += "  " + this.eventRoll();
+			}
+
+
+			const debugTooltip =
+				`Main Roll: ${mainRoll.toInt()}
+Shadow Roll: ${shadowRoll.toInt()}
+Success Threshold: ${ProbabilityUtils.getSuccessThreshold(state)}
+Chaos Factor: ${state.cf}
+Tension: ${state.tension}`;
+			this.storeResult({ text: output, tooltip: debugTooltip });
+			this.drawList();
+		});
+
+		this.updateTooltip();
+	}
+
+	drawCFInput(settings: ChaosEngineSettings) {
+		const container = this.containerEl.children[1];
+		const header = document.createElement("h6");
+		header.classList.add("mge-row");
+
+		const label = document.createElement("span");
+		label.textContent = "Chaos Factor";
+
+		const group = document.createElement("div");
+		group.classList.add("mge-inline-group");
+
+		// CF dropdown
+		const cf = document.createElement('select');
+		cf.classList.add('cf-dropdown', 'tooltip-enabled');
+		cf.setAttribute("data-title", "Chaos Factor!");
+		Object.entries(chaos_options).forEach(([text, chaos_factor]) => {
+			const opt = document.createElement('option');
+			opt.textContent = text;
+			opt.value = chaos_factor;
+			if (chaos_factor === settings.cfChoice) opt.selected = true;
+			cf.appendChild(opt);
+		});
+
+		// Tension dropdown
+		const trend = document.createElement('select');
+		trend.classList.add('trend-dropdown', 'tooltip-enabled');
+		trend.setAttribute("data-title", "Trend!");
+		Object.entries(tension_options).forEach(([text, tension]) => {
+			const opt = document.createElement('option');
+			opt.textContent = text;
+			opt.value = tension;
+			if (tension === settings.tensionChoice) opt.selected = true;
+			trend.appendChild(opt);
+		});
+
+		// keep refs
+		this.cfSelect = cf;
+		this.trendSelect = trend;
+
+		// Save on change
+		cf.addEventListener("change", async () => {
+			settings.cfChoice = cf.value as ChaosFactor;
+			this.updateTooltip();
+			await saveSettings(this.plugin, settings);
+		});
+		trend.addEventListener("change", async () => {
+			this.updateTooltip();
+			settings.tensionChoice = trend.value as Tension;
+			await saveSettings(this.plugin, settings);
+		});
+
+		group.appendChild(cf);
+		group.appendChild(trend);
+		header.appendChild(label);
+		header.appendChild(group);
+		container.appendChild(header);
+	}
+	async drawSentencePicker() {
+		const container = this.containerEl.children[1];
+
+		const header = container.createEl("h6", { text: "Sentence Picker" });
+
+		const dropdown = header.createEl("select", { cls: "epub-dropdown" });
+		const pickBtn = header.createEl("button", { text: "Pick Sentence" });
+		const randomBtn = header.createEl("button", { text: "Random Book" });
+
+		const epubDir = this.plugin.settings.epubDir // from your settings tab
+		const epubFiles = sp.getAllEpubsInDir(this.plugin.settings.epubDir);
+
+		epubFiles.forEach(fullPath => {
+			const parsed = path.parse(fullPath);
+			const bookName = parsed.name;
+
+			dropdown.createEl("option", {
+				text: bookName,
+				value: fullPath,
+			});
+		});
+		pickBtn.addEventListener("click", async () => {
+			const selectedPath = dropdown.value;
+			console.log(selectedPath);
+			const sentence = await sp.getRandomSentenceFromEpub(selectedPath);
+			console.log(sentence);
+			this.storeResult(sentence);
+		});
+
+		randomBtn.addEventListener("click", async () => {
+			if (epubFiles.length === 0) {
+				this.storeResult("⚠️ No epubs found.");
+				return;
+			}
+			const randomFile = epubFiles[Math.floor(Math.random() * epubFiles.length)];
+			const sentence = await sp.getRandomSentenceFromEpub(randomFile);
+			this.storeResult(sentence);
+		});
+	}
+
 	drawList() {
-		this.deleteList()
+		this.listEl.empty();
 		if (!this.listEl) {
-			const listContainerEl = document.createElement('div');
-			this.listEl = document.createElement('ul');
-			this.listEl.className = 'my-list'
-			listContainerEl.appendChild(this.listEl);
-			this.containerEl.children[1].appendChild(listContainerEl);
+			this.resultsContainer.appendChild(this.listEl);
 		}
 		if (this.results.length === 0) {
 			this.noResults()
+			return;
 		} else {
-			this.listEl.empty()
 			for (let i = this.results.length - 1; i >= 0; i--) {
-				const result = this.results[i];
-				this.addToResults(result, i)
+				console.log("drawList -> adding index:", i, "value:", this.results[i]);
+				const entry = this.results[i];
+				if (typeof entry === "string") {
+					this.addToResults(entry, i);
+				} else {
+					this.addToResults(entry.text, i, entry.tooltip)
+				}
 			};
 
 		}
-	}
-	ChaosFactor(mod: string) {
-		if (mod === '+1') {
-			this.chaosFactor_num = Math.min(this.chaosFactor_num + 1, 6); // Increase by 1, capped at 6
-		} else {
-			this.chaosFactor_num = Math.max(this.chaosFactor_num - 1, 3); // Decrease by 1, capped at 3
-		}
-		this.updateDisplay(this.chaosFactor_num, '.input-cf')
 	}
 	updateDisplay(toInputNum: number, displayId: string) {
 		const inputContainer = this.containerEl.querySelector(displayId) as HTMLInputElement;
 		inputContainer.value = toInputNum.toString()
 	}
-	drawFateCheck() {
-		const fateCheckContainer = document.createElement('div');
-		const fatecheckHeader = document.createElement("h6");
-		fateCheckContainer.appendChild(fatecheckHeader);
-		fatecheckHeader.setText("Fate Check");
-		const dropdown = document.createElement('select');
-		dropdown.className = 'tooltip-enabled';
-		const dropdownContainer = document.createElement('div');
-		dropdownContainer.style.position = 'relative';
-		const options = { '50/50 or Unsure': 0, 'Likely': 2, 'Unlikely': -2, 'Very Likely': 4, 'Very Unlikely': -4, 'Sure Thing': 6, 'No Way': -6, 'Has to Be': 8, 'Impossible': -8 }; Object.entries(options).forEach(([optionText, numericValue]) => {
-			const option = document.createElement('option');
-			option.textContent = optionText;
-			option.value = numericValue.toString();
-			dropdown.appendChild(option);
-		});
-		const checkbox = document.createElement('input');
-		checkbox.type = 'checkbox';
-		checkbox.id = 'my-checkbox';
-		checkbox.style.marginLeft = '5px';
-		checkbox.setAttribute("data-title", "Is this check favorable?");
-		checkbox.addClass('tooltip-enabled')
-		const rollButton = document.createElement('button');
-		const diceIcon = document.createElement('i');
-		diceIcon.className = 'fa-solid fa-dice-d20';
-		diceIcon.addClass("icon");
-		rollButton.appendChild(diceIcon);
-		rollButton.addClass("tooltip-enabled")
-		rollButton.setAttribute("data-title", "Roll Fate Check!")
-		fatecheckHeader.className = 'button-title';
-		rollButton.addClass("right-button")
-		dropdown.style.marginRight = '10px'
-		fatecheckHeader.appendChild(checkbox)
-		fatecheckHeader.appendChild(dropdown)
-		fatecheckHeader.appendChild(rollButton);
-
-		this.containerEl.children[1].appendChild(fateCheckContainer)
-		const chaosFactor_num = this.chaosFactor_num;
-		rollButton.addEventListener('click', () => { 
-			let roll_result = "";
-			let chaos_mod = 0;
-			if (chaosFactor_num == 3) {
-				if (checkbox.checked) {
-					chaos_mod = 2
-				}
-				else {
-					chaos_mod = -2
-				}
-			}
-			else if (chaosFactor_num == 6) {
-				if (checkbox.checked) {
-					chaos_mod = -2
-				}
-				else {
-					chaos_mod = 2
-				}
-			}
-			let die1 = randomInt(1, 11);
-			let die2 = randomInt(1, 11);
-			let chaos_die = randomInt(1, 11);
-			let result = (die2 + die1 + parseInt(dropdown.value) + chaos_mod)
-
-
-			if (chaosFactor_num >= chaos_die) {
-				if (die1 === die2) {
-				}
-				else if (die1 % 2 === 0 && die2 % 2 === 0) {
-					const event = this.eventRoll();
-					roll_result = event + "  " + roll_result
-				} else if (die1 % 2 === 1 && die2 % 2 === 1) {
-					roll_result += "Execptional "
-
-				} else {
-				}
-			}
-			if (result >= 11) {
-				roll_result += "Yes"
-			}
-			else {
-				roll_result += "No"
-			}
-			this.storeResult(roll_result);
-			this.drawList()
-		});
-
-	}
-	addToResults(result: string, i: number) {
+	addToResults(result: string, i: number, tooltip?: string) {
 		const itemEl = document.createElement('li');
 		const textEl = document.createElement('span');
-		textEl.style.fontWeight ='bold';
-		if (result.contains("  ")) {
-			const split_text = result.split("  ")
-			textEl.textContent = split_text[2];
+		textEl.style.fontWeight = 'bold';
+
+		if (result.includes("  ")) {
+			const split_text = result.split("  ");
+			textEl.textContent = split_text[2] ?? "";
 			const eventEl = document.createElement('div');
 			eventEl.textContent = split_text[0] + "\n" + split_text[1];
-			eventEl.style.whiteSpace = 'pre-line'; // Allow preserving newlines
-			eventEl.style.display = 'block'; //
+			eventEl.style.whiteSpace = 'pre-line';
+			eventEl.style.display = 'block';
 			eventEl.style.fontWeight = 'bold';
 			itemEl.appendChild(textEl);
 			itemEl.appendChild(eventEl);
-		}
-		else {
+		} else {
 			textEl.textContent = result;
 			itemEl.appendChild(textEl);
 		}
-		itemEl.className = 'my-list-item'; // Add custom class for styling
+
+		itemEl.className = 'my-list-item';
+
+		// Copy button
 		const copyBtn = document.createElement('button');
 		const copyBtnImg = document.createElement('i');
 		copyBtnImg.className = 'fa-regular fa-clipboard';
@@ -244,114 +496,67 @@ export class MythicView extends ItemView {
 			console.log(`Copied: ${result}`);
 		});
 		itemEl.appendChild(copyBtn);
+
 		itemEl.style.position = 'relative';
-		this.addFooter(itemEl);
-		itemEl.style.paddingRight = '0px'; // Adjust the padding value as needed
-		itemEl.style.marginTop = '20px'
+		itemEl.style.paddingRight = '0px';
+		itemEl.style.marginTop = '20px';
+
 		copyBtn.style.position = 'absolute';
 		copyBtn.className = 'borderless-button';
 		copyBtn.style.right = '0';
+		copyBtn.style.bottom = '0';
 		copyBtn.setAttribute('data-title', 'Copy Result');
-		copyBtn.style.bottom = '0'
-		copyBtn.addClass("tooltip-enabled")
-		calculateButtonPadding(copyBtn)
+		copyBtn.classList.add("tooltip-enabled");
+		calculateButtonPadding(copyBtn);
+
+		this.addFooter(itemEl);
+
+		// Delete button
 		const deleteButton = document.createElement('button');
 		deleteButton.setAttribute('data-title', 'Delete Result');
 		const deleteIcon = document.createElement('i');
-		deleteButton.className = 'borderless-button'; // Add custom class for styling
-		calculateButtonPadding(deleteButton)
 		deleteIcon.className = 'fa-solid fa-trash';
-		deleteButton.addClass("tooltip-enabled")
+		deleteButton.className = 'borderless-button';
+		deleteButton.classList.add("tooltip-enabled");
+		calculateButtonPadding(deleteButton);
 		deleteButton.style.position = 'absolute';
 		deleteButton.style.top = '0';
 		deleteButton.style.right = '0';
-		deleteButton.addEventListener('click', () => { //takes the current index from the loop and deletes that from the results array
+		deleteButton.appendChild(deleteIcon);
+		deleteButton.addEventListener('click', () => {
 			if (i >= 0 && i < this.results.length) {
 				this.results.splice(i, 1);
+				this.drawList();
 			}
-			this.drawList()
 		});
-		deleteButton.appendChild(deleteIcon);
 		itemEl.appendChild(deleteButton);
+		if (tooltip) {
+			const tooltipDiv = document.createElement("div");
+			tooltipDiv.className = "mge-tooltip";
+			tooltipDiv.textContent = tooltip.replace(/\\n/g, "\n");
+			itemEl.appendChild(tooltipDiv);
+		}
+
 		this.listEl.appendChild(itemEl);
+		console.log("addToResults -> appended li, list length:", this.listEl.children.length);
 		this.listEl.style.marginTop = '-23px';
 	}
-	drawCFInput() {
-		const container = this.containerEl.children[1]
-		const header = document.createElement("h6");
-		header.setText("Chaos Factor")
-		header.className = 'button-title'
-		const subtractButton = document.createElement('button');
-		const subtractButtonIcon = document.createElement('i');
-		subtractButton.addClass("tooltip-disabled")
-		subtractButtonIcon.className = 'fa-regular fa-square-minus fa-xl';
-		subtractButton.appendChild(subtractButtonIcon);
-		subtractButton.addEventListener('click', () => {
-			this.ChaosFactor('-1')
-		});
-		const addButton = document.createElement('button');
-		const addButtonIcon = document.createElement('i');
-		addButtonIcon.className = 'fa-regular fa-square-plus fa-xl';
-		addButton.addClass("tooltip-disabled")
-		addButton.appendChild(addButtonIcon);
-		addButton.addEventListener('click', () => {
-			this.ChaosFactor('+1')
-		});
-
-		const chaosFactorInput = document.createElement('input');
-		chaosFactorInput.addClass('input-cf')
-		chaosFactorInput.style.width = '26px'
-		chaosFactorInput.style.textAlign = 'center'
-		chaosFactorInput.type = 'number';
-		chaosFactorInput.value = this.chaosFactor_num.toString();
-		chaosFactorInput.min = '3',
-			chaosFactorInput.max = '6',
-			chaosFactorInput.step = '1';
-		const inputContainer = document.createElement('div');
-		inputContainer.className = 'button-right'
-		inputContainer.style.display = 'flex'
-		inputContainer.appendChild(subtractButton)
-		inputContainer.appendChild(chaosFactorInput)
-		inputContainer.appendChild(addButton)
-		header.appendChild(inputContainer)
-		container.appendChild(header);
-	}
 	drawResultsList() {
-		const resultContainer = document.createElement('div');
-		const result_title = document.createElement('span');
-		result_title.style.marginLeft = "5px";
-		result_title.style.fontSize = "23px";
-		result_title.style.fontWeight = "bold";
-		result_title.setText("Results");
-		result_title.className = 'button-title';
-		const resultButton = document.createElement('button');
-		resultButton.addClass('borderless-button');
-		resultButton.addClass('right-button');
-		resultButton.addClass("tooltip-enabled")
-		resultButton.setAttribute("data-title", "Delete all results")
-		calculateButtonPadding(resultButton)
-		result_title.style.border = '10px';
-		result_title.style.borderColor = "#fff";
-		const resultIcon = document.createElement('i');
-		resultIcon.className = 'fa-solid fa-trash';
-		const line = document.createElement('hr');
-		line.style.position = 'relative';
-		line.style.top = '-23px';
-		resultButton.appendChild(resultIcon);
-		result_title.appendChild(resultButton);
-		resultContainer.appendChild(result_title)
-		resultContainer.appendChild(line)
-		resultContainer.style.border = '10px'
-		resultContainer.style.borderColor = "#fff"
-		this.containerEl.children[1].appendChild(resultContainer)
-		resultButton.addEventListener('click', () => {
-			this.clearList()
-			this.results = []
+		this.listEl.empty();
 
-		})
+		if (this.results.length === 0) {
+			this.noResults();
+			return;
+		}
 
-		this.drawList()
+		for (let i = this.results.length - 1; i >= 0; i--) {
+			this.addToResults(this.results[i].text, i);
+		}
 	}
+
+
+
+
 	eventRoll() {
 		function selectEvent(roll: number): string {
 			const eventOptions = [
@@ -380,7 +585,7 @@ export class MythicView extends ItemView {
 		const selectedEvent = selectEvent(rolledNumber);
 		const meaning1 = getRandomElement(descriptorList1);
 		const meaning2 = getRandomElement(descriptorList2);
-		const event = selectedEvent + "  " + meaning1 + " " + meaning2;
+		const event = selectedEvent + "\n" + meaning1 + " " + meaning2;
 		return event;
 	}
 	drawEventRoll() {
@@ -407,22 +612,23 @@ export class MythicView extends ItemView {
 		const value = option.value;
 		if (value === "Detail") {
 			this.storeResult(this.detailCheck())
-		} else if (value === "Both") {
-			const detail = this.detailCheck()
+		}
+		else if (value === "Meaning") {
 			const meaning1 = getRandomElement(descriptorList1);
 			const meaning2 = getRandomElement(descriptorList2);
-			const detailAndMeaning = detail + "  " + meaning1 + " " + meaning2;
-			this.storeResult(detailAndMeaning)
+			this.storeResult(meaning1 + "\n" + meaning2)
 		}
-		else if (value === "Meaning"){
-			const meaning1 = getRandomElement(descriptorList1);
-			const meaning2 = getRandomElement(descriptorList2);
-			this.storeResult(meaning1 + "  " + meaning2)
-		}
-		else if (value === "Action"){
+		else if (value === "Action") {
 			const action1 = getRandomElement(actionList1);
 			const action2 = getRandomElement(actionList2);
-			this.storeResult(action1 + "  " + action2)
+			this.storeResult(action1 + "\n" + action2)
+		}
+		else if (value === "Meaning & Action") {
+			const meaning1 = getRandomElement(descriptorList1);
+			const meaning2 = getRandomElement(descriptorList2);
+			const action1 = getRandomElement(actionList1);
+			const action2 = getRandomElement(actionList2);
+			this.storeResult(action1 + " " + action2 + "\n" + meaning1 + " " + meaning2)
 		}
 	}
 	checkDetail(roll: number): string {
@@ -446,7 +652,7 @@ export class MythicView extends ItemView {
 		return result
 	}
 	detailCheck(): string {
-		const chaosFactor_num = this.chaosFactor_num;
+		const chaosFactor_num = 3;
 		let mod;
 		if (chaosFactor_num === 3) {
 			mod = 2
@@ -468,7 +674,7 @@ export class MythicView extends ItemView {
 		const rollButton = document.createElement('button');
 		const dropdown = document.createElement('select');
 		dropdown.className = 'detail-check-dropdown'
-		const options = ["Detail", "Meaning", "Both", "Action"];
+		const options = ["Detail", "Meaning", "Action", "Meaning & Action"];
 		options.forEach((optionText) => {
 			const option = document.createElement('option');
 			option.textContent = optionText;
@@ -520,7 +726,7 @@ export class MythicView extends ItemView {
 		const dropdown = document.createElement('select');
 		const dropdownlabel = document.createElement('h6');
 		dropdownlabel.textContent = 'Statistic Check'
-		const options = { "Important NPC": 2, "Weak Attribute": -2, "Strong Attribute": 2, "Prime Attribute": 4 }; 
+		const options = { "Important NPC": 2, "Weak Attribute": -2, "Strong Attribute": 2, "Prime Attribute": 4 };
 		Object.entries(options).forEach(([optionText, numericValue]) => {
 			const option = document.createElement('option');
 			option.textContent = optionText;
@@ -667,7 +873,7 @@ export class MythicView extends ItemView {
 				if (action.contains("NPC Action")) {
 					let [mod, _] = this.getStance()
 					mod = mod as number;
-					const roll = randomInt(1, 11) + randomInt(1,11) + mod;
+					const roll = randomInt(1, 11) + randomInt(1, 11) + mod;
 					for (const option of npcActionTable2) {
 						const [min, max] = option.range;
 						if (roll >= min && roll <= max) {
@@ -681,15 +887,47 @@ export class MythicView extends ItemView {
 	}
 	async onOpen() {
 		const container = this.containerEl.children[1];
+		let settings = await loadSettings(this.plugin);
+
 		container.createEl("h4", { text: "Mythic Game Emulator" });
-		this.drawCFInput();
-		this.drawFateCheck();
+
+		// draw controls first
+		this.drawCFInput(settings);
+		this.drawFateCheck(settings);
+		this.updateTooltip();
 		this.drawEventRoll();
 		this.drawDetailCheck();
 		this.drawStatisticCheck();
 		this.drawBehaviorCheck();
+		this.drawSentencePicker();
+
+		// ⬇️ build Results at the end (or move it here if already built)
+		if (!this.resultsContainer) {
+			this.resultsContainer = container.createDiv("results-container");
+
+			const resultHeader = this.resultsContainer.createDiv("results-header");
+			const resultTitle = resultHeader.createSpan({ cls: "results-title" });
+			resultTitle.setText("Results");
+
+			const clearBtn = resultHeader.createEl("button", { cls: "borderless-button right-button tooltip-enabled" });
+			clearBtn.setAttribute("data-title", "Delete all results");
+			calculateButtonPadding(clearBtn);
+			clearBtn.createEl("i", { cls: "fa-solid fa-trash" });
+			clearBtn.addEventListener("click", () => {
+				this.results = [];
+				this.drawList();
+			});
+
+			this.listEl = this.resultsContainer.createEl("ul", { cls: "results-list" });
+		} else {
+			// if it already exists, this moves it to the bottom
+			container.appendChild(this.resultsContainer);
+		}
+
 		this.drawResultsList();
 	}
+
+
 	async onClose() {
 		// Nothing to clean up.
 	}
