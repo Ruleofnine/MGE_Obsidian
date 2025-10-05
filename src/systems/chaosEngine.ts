@@ -4,19 +4,28 @@ function assertNever(x: never): never {
 }
 import { ChaosFactor, Tension, Probability, OracleState } from "../lib/types";
 const probabilityThresholds: Record<Probability, number> = {
-	[Probability.Inevitable]: 5,
-	[Probability.Certain]: 25,
-	[Probability.HasToBe]: 50,
-	[Probability.SureThing]: 150,
-	[Probability.Probable]: 250,
-	[Probability.Likely]: 350,
-	[Probability._5050]: 500,
-	[Probability.Unlikely]: 650,
-	[Probability.Dubious]: 750,
-	[Probability.NoWay]: 850,
-	[Probability.Ridiculous]: 950,
-	[Probability.Impossible]: 975,
-	[Probability.Unfathomable]: 995,
+	[Probability.Inevitable]: 50,
+	[Probability.Certain]: 250,
+	[Probability.HasToBe]: 500,
+	[Probability.SureThing]: 1500,
+	[Probability.Probable]: 2500,
+	[Probability.Likely]: 3500,
+	[Probability._5050]: 5000,
+	[Probability.Unlikely]: 6500,
+	[Probability.Dubious]: 7500,
+	[Probability.NoWay]: 8500,
+	[Probability.Ridiculous]: 9500,
+	[Probability.Impossible]: 9750,
+	[Probability.Unfathomable]: 9950,
+}
+export namespace TensionUtils {
+	export function isTense(tension: Tension): boolean {
+		return (
+			tension === Tension.FullTilt ||
+			tension === Tension.GettingCrazy ||
+			tension === Tension.Tense
+		);
+	}
 }
 // ChaosFactor helpers
 export namespace ChaosFactorUtils {
@@ -38,13 +47,13 @@ export namespace ChaosFactorUtils {
 
 	export function getCfMod(cf: ChaosFactor): number {
 		switch (cf) {
-			case ChaosFactor.Peaceful: return 75;
-			case ChaosFactor.Serene: return 50;
-			case ChaosFactor.Calm: return 25;
+			case ChaosFactor.Peaceful: return 750;
+			case ChaosFactor.Serene: return 500;
+			case ChaosFactor.Calm: return 250;
 			case ChaosFactor.Stable: return 0;
-			case ChaosFactor.Chaotic: return 50;
-			case ChaosFactor.Havoc: return 100;
-			case ChaosFactor.Pandemonium: return 200;
+			case ChaosFactor.Chaotic: return 500;
+			case ChaosFactor.Havoc: return 1000;
+			case ChaosFactor.Pandemonium: return 2000;
 		}
 	}
 }
@@ -53,7 +62,7 @@ export namespace ChaosFactorUtils {
 export namespace ProbabilityUtils {
 	function updateThershold(threshold: number, change: number): number {
 		threshold += change;
-		return Math.max(Math.min(threshold, 995), 5);
+		return Math.max(Math.min(threshold, 9950), 50);
 	}
 	export function isEasy(prob: Probability): boolean {
 		return (
@@ -85,11 +94,11 @@ export namespace ProbabilityUtils {
 		state: OracleState
 	): number {
 		let threshold = probabilityThresholds[state.probability];
-		console.log("Base Threshold", threshold);
+		//console.log("Base Threshold", threshold);
 		let tensionMod = tensionProbMod(state);
-		console.log("Tension Mod", tensionMod);
+		//console.log("Tension Mod", tensionMod);
 		const cf_mod = ChaosFactorUtils.getCfMod(state.cf);
-		console.log("cf Mod", cf_mod);
+		//console.log("cf Mod", cf_mod);
 		if (ProbabilityUtils.isHard(state.probability)) {
 			if (ChaosFactorUtils.isChaotic(state.cf)) {
 				threshold = updateThershold(threshold, -cf_mod);
@@ -105,7 +114,7 @@ export namespace ProbabilityUtils {
 
 		}
 		threshold = updateThershold(threshold, tensionMod);
-		console.log("Final Threshold", threshold);
+		//console.log("Final Threshold", threshold);
 		return threshold;
 	}
 }
@@ -119,18 +128,26 @@ export enum Exceptional {
 
 // -------------------- RollResult --------------------
 export class RollResult {
+	thousands: number;
 	hundreds: number;
 	tens: number;
 	ones: number;
 
-	constructor(hundreds: number, tens: number, ones: number) {
+	constructor(thousands: number, hundreds: number, tens: number, ones: number) {
+		this.thousands = thousands;
 		this.hundreds = hundreds;
 		this.tens = tens;
 		this.ones = ones;
 	}
 
-	toInt(): number {
+	to10_000(): number {
+		return this.ones + this.tens * 10 + this.hundreds * 100 + this.thousands * 1000;
+	}
+	to1_000(): number {
 		return this.ones + this.tens * 10 + this.hundreds * 100;
+	}
+	to100(): number {
+		return this.ones + this.tens * 10;
 	}
 	static exceptionalThreshold(state: OracleState, yes: boolean) {
 		let majorThreshold: number;
@@ -160,8 +177,8 @@ export class RollResult {
 			majorThreshold = 800;
 			minorThreshold = 700;
 		} else if (!yes && [Probability.HasToBe, Probability.SureThing].includes(state.probability)) {
-			majorThreshold =  700;
-			minorThreshold =  650;
+			majorThreshold = 700;
+			minorThreshold = 650;
 		} else if (!yes && [Probability.Probable, Probability.Likely].includes(state.probability)) {
 			majorThreshold = 700;
 			minorThreshold = 650;
@@ -213,7 +230,7 @@ export class RollResult {
 	}
 
 	isExceptional(state: OracleState, yes: boolean): Exceptional | null {
-		const roll = this.toInt();
+		const roll = this.to1_000();
 		const { minor, major } = RollResult.exceptionalThreshold(state, yes)
 		if (roll >= major) return Exceptional.Major;
 		if (roll >= minor) return Exceptional.Minor;
@@ -222,51 +239,51 @@ export class RollResult {
 	}
 
 	hasAnd(_state: OracleState, successThreshold: number): boolean {
-		const roll = this.toInt();
-		return (roll >= successThreshold && (successThreshold - roll) > successThreshold + 100) || roll > 995;
+		const roll = this.to10_000();
+		return (roll >= successThreshold && (successThreshold - roll) > successThreshold + 1000) || roll > 9950;
 	}
 
 	hasBut(_state: OracleState, successThreshold: number): boolean {
-		const roll = this.toInt();
-		return roll < successThreshold && (successThreshold - roll) < 50;
+		const roll = this.to10_000();
+		return roll < successThreshold && (successThreshold - roll) < 500;
 	}
 	static eventThreshold(state: OracleState): number {
-		let window = 10;
+		let window = 0;
 		const cfWindowMod = (() => {
 			switch (state.cf) {
-				case ChaosFactor.Peaceful: return -10;
-				case ChaosFactor.Serene: return -5;
-				case ChaosFactor.Calm: return 0;
-				case ChaosFactor.Stable: return 10;
-				case ChaosFactor.Chaotic: return 15;
-				case ChaosFactor.Havoc: return 20;
-				case ChaosFactor.Pandemonium: return 25;
+				case ChaosFactor.Peaceful: return 2;
+				case ChaosFactor.Serene: return 3;
+				case ChaosFactor.Calm: return 4;
+				case ChaosFactor.Stable: return 5;
+				case ChaosFactor.Chaotic: return 6;
+				case ChaosFactor.Havoc: return 7;
+				case ChaosFactor.Pandemonium: return 8;
 			}
 		})();
 
 		const tensionWindowMod = (() => {
 			switch (state.tension) {
-				case Tension.LockedIn: return 15;
-				case Tension.FullTilt: return 33;
-				case Tension.GettingCrazy: return 25;
-				case Tension.UnderControl: return 10;
-				case Tension.Coasting: return 5;
-				case Tension.Tense: return 10;
+				case Tension.LockedIn: return 5;
+				case Tension.FullTilt: return 6;
+				case Tension.GettingCrazy: return 5;
+				case Tension.UnderControl: return 4;
+				case Tension.Coasting: return 2;
+				case Tension.Tense: return 3;
 				default: return 0;
 			}
 		})();
-		return Math.max(window += cfWindowMod + tensionWindowMod, 10);
+		return Math.max(window += cfWindowMod + tensionWindowMod, 5);
 	}
 
-	hasEvent(state: OracleState, successThreshold: number): boolean {
-		const roll = this.toInt();
-		const distance = Math.abs(roll - successThreshold);
+	hasEvent(state: OracleState): boolean {
+		const subBand = this.to100();
 		let window = RollResult.eventThreshold(state);
-		return distance <= window;
+		return subBand <= window;
 	}
 
-	static rollD1000(): RollResult {
+	static rollD10000(): RollResult {
 		return new RollResult(
+			rollDigit(),
 			rollDigit(),
 			rollDigit(),
 			rollDigit()
@@ -279,19 +296,19 @@ export function tensionProbMod(state: OracleState): number {
 	const t = state.tension;
 	if (t === Tension.Neutral || p === Probability._5050) return 0;
 	if (ProbabilityUtils.isHard(p)) {
-		if (t === Tension.FullTilt) return -150;
-		if (t === Tension.LockedIn) return -125;
-		if (t === Tension.GettingCrazy) return -100;
-		if (t === Tension.UnderControl) return -50;
-		if (t === Tension.Coasting) return -10;
-		if (t === Tension.Tense) return -25;
+		if (t === Tension.FullTilt) return -1500;
+		if (t === Tension.LockedIn) return -1250;
+		if (t === Tension.GettingCrazy) return -1000;
+		if (t === Tension.UnderControl) return -500;
+		if (t === Tension.Coasting) return -100;
+		if (t === Tension.Tense) return -250;
 	} else if (ProbabilityUtils.isEasy(p)) {
-		if (t === Tension.LockedIn) return -50;
-		if (t === Tension.UnderControl) return -25;
-		if (t === Tension.Coasting) return -25;
-		if (t === Tension.Tense) return 25;
-		if (t === Tension.GettingCrazy) return 75;
-		if (t === Tension.FullTilt) return 150;
+		if (t === Tension.LockedIn) return -500;
+		if (t === Tension.UnderControl) return -250;
+		if (t === Tension.Coasting) return -250;
+		if (t === Tension.Tense) return 250;
+		if (t === Tension.GettingCrazy) return 750;
+		if (t === Tension.FullTilt) return 1500;
 	}
 	return 0;
 }
@@ -299,7 +316,6 @@ export function tensionProbMod(state: OracleState): number {
 export interface RollResolved {
 	exceptional: Exceptional | null;
 	yes: boolean;
-	but: boolean;
 	eventTriggered: boolean;
 }
 
@@ -307,86 +323,65 @@ export namespace RollResolver {
 	export function resolveRoll(
 		state: OracleState,
 		rollResult: RollResult,
-		shadowRollResult: RollResult,
 	): RollResolved {
 		const successThreshold = ProbabilityUtils.getSuccessThreshold(state);
-		let roll = rollResult.toInt();
+		let roll = rollResult.to10_000();
 		const yes = roll >= successThreshold;
-		let exceptional = null;
-		if (roll === 0 || roll === 999) {
-			exceptional = Exceptional.Major;
-		} else if (10 >= roll || roll >= 990) {
-			exceptional = Exceptional.Minor;
-		};
-		if (!exceptional) {
-			exceptional = shadowRollResult.isExceptional(state, yes);
-		}
-		const but = rollResult.hasBut(state, successThreshold);
-		const eventTriggered = shadowRollResult.hasEvent(state, successThreshold);
-		return { exceptional, yes, but, eventTriggered };
+		const exceptional = rollResult.isExceptional(state, yes);
+		const eventTriggered = rollResult.hasEvent(state);
+		return { exceptional, yes, eventTriggered };
 	}
 }
-function rangeChance(start: number, end: number): number {
-	return (end - start + 1) / 1000
+function rangeChance(start: number, end: number, max: number): number {
+	if (end < start) return 0;
+	return (end - start + 1) / max;
 }
+
 export function rollOdds(state: OracleState) {
 	const successThreshold = ProbabilityUtils.getSuccessThreshold(state);
-	console.log("successThreshold = ",successThreshold);
+	const successBandMax = 10000;
+	const exceptionalBandMax = 1000;
 
-	const yesChance = rangeChance(successThreshold, 999);
-	console.log("Yes % = ",yesChance);
-	const noChance = rangeChance(0, successThreshold - 1);
-	console.log("No % = ",noChance);
+	const yesChance = (successBandMax - successThreshold) / successBandMax;
+	const noChance = 1 - yesChance;
 
 	const yesEx = RollResult.exceptionalThreshold(state, true);
 	const noEx = RollResult.exceptionalThreshold(state, false);
-	console.log("exceptional yes major", yesEx.major)
-	console.log("exceptional yes minor", yesEx.minor)
 
-	// --- YES EXCEPTIONALS ---
-	// Always guarantee 999 crit and 990–998 near-crit.
-	const critMajorYes = rangeChance(999, 999);
-	const critMinorYes = rangeChance(990, 998);
-	// --- NO EXCEPTIONALS ---
-	// Always guarantee 0 and 1–9 for minor/major fails
-	const critMajorNo = rangeChance(0, 0);
-	const critMinorNo = rangeChance(1, 9);
+	// ✅ YES SIDE — [major, 1000)
+	const majorYes = (1000 - yesEx.major) / exceptionalBandMax;
+	const minorYes = (yesEx.major - yesEx.minor) / exceptionalBandMax;
 
-	const majorNo = rangeChance(noEx.major,  999);
-	const minorNo = rangeChance(noEx.minor,  noEx.major-1);
-	// Dynamic ranges relative to success threshold
-	const majorYes = rangeChance(yesEx.major,  999);
-	const minorYes = rangeChance(yesEx.minor,  yesEx.major-1);
-	console.log("Major No chance = ",majorNo);
-	console.log("Minor No chance = ",minorNo);
-	console.log("Minor No chance  with crit= " ,minorNo + critMinorNo);
-	console.log("Major No chance with crit = " ,majorNo + critMajorNo);
-	console.log("Major Yes chance = ",majorYes);
-	console.log("Minor Yes chance = ",minorYes);
-	console.log("Minor Yes chance with crit = ",minorYes + critMinorYes);
-	console.log("Major Yes chance with crit = ",majorYes + critMajorYes);
-	console.log("Final Major No",(((majorNo + critMajorNo) * noChance) * 100).toFixed(2));
-	console.log("Final Minor No" ,(((minorNo + critMinorNo) * noChance) * 100).toFixed(2));
-	console.log("Final Major Yes",(((majorYes + critMajorYes) * yesChance) * 100).toFixed(2));
-	console.log("Final Minor Yes" ,(((minorYes + critMinorYes) * yesChance) * 100).toFixed(2));
+	// ✅ NO SIDE — [minor, major)
+	const majorNo = (1000 - noEx.major) / exceptionalBandMax;
+	const minorNo = (noEx.major - noEx.minor) / exceptionalBandMax;
 
-
-	// --- EVENT WINDOW ---
+	// ✅ Event window – no +1 bias (matches sim)
 	const eventWindow = RollResult.eventThreshold(state);
-	const eventLow = Math.max(successThreshold - eventWindow, 0);
-	const eventHigh = Math.min(successThreshold + eventWindow, 999);
-	const eventBase = rangeChance(eventLow, eventHigh);
+	const eventChance = eventWindow / 100;
+
+	console.log("===PROJECTED ODDS===");
+	console.log(`Exceptional Major Yes: ${(majorYes * yesChance * 100).toFixed(2)}%`);
+	console.log(`Exceptional Minor Yes: ${(minorYes * yesChance * 100).toFixed(2)}%`);
+	console.log(`Yes: ${(yesChance * 100).toFixed(2)}%`);
+	console.log(`No: ${(noChance * 100).toFixed(2)}%`);
+	console.log(`Exceptional Minor No: ${(minorNo * noChance * 100).toFixed(2)}%`);
+	console.log(`Exceptional Major No: ${(majorNo * noChance * 100).toFixed(2)}%`);
+	console.log(`Event: ${(eventChance * 100).toFixed(2)}%`);
 
 	return {
 		yes: yesChance,
 		no: noChance,
-		excMajorYes: (majorYes + critMajorYes) * yesChance,
-		excMinorYes: (minorYes + critMinorYes) * yesChance,
-		excMajorNo: (majorNo   + critMajorNo) * noChance,
-		excMinorNo: (minorNo   + critMinorNo) * noChance,
-		event: eventBase,
+		excMajorYes: majorYes * yesChance,
+		excMinorYes: minorYes * yesChance,
+		excMajorNo: majorNo * noChance,
+		excMinorNo: minorNo * noChance,
+		event: eventChance,
 	};
 }
+
+
+
 
 
 

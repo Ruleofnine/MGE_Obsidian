@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import type MGE from "./main";
 import * as sp from "./systems/sentencePicker";
 import { ChaosFactor, Tension, Probability, OracleState, ChaosEngineSettings } from "./lib/types";
-import { RollResult, RollResolver, Exceptional, rollOdds, ProbabilityUtils } from './systems/chaosEngine';
+import { RollResult, RollResolver, Exceptional, rollOdds, ProbabilityUtils, ChaosFactorUtils, TensionUtils, RollResolved } from './systems/chaosEngine';
 import * as path from "path";
 import { randomInt } from 'crypto';
 import actionList1 from 'JSONS/actions1.json'
@@ -147,11 +147,55 @@ function formatExceptionalResult(exceptional: Exceptional | null, yes: boolean):
 	const phrase = pool[Math.floor(Math.random() * pool.length)];
 	return phrase;
 }
-
+enum color {
+	success = "#00FF00",
+	fail = "#FF0000",
+	event = "#26C6DA",
+	major = "#FFD700",
+	minor = "#FFA500",
+	choatic = "#FF00FF",
+	calm = "#00FF00",
+	tense = "#FF00FF",
+	coasting = "#00FF00",
+	hard = "#FF0000",
+	easy = "#00FFFF",
+	stable = "#FFFFFF"
+}
+function formatColoredRoll(roll: RollResult, resolved: RollResolved): HTMLDivElement {
+	const thousands = roll.thousands; // success band
+	const hundreds = roll.hundreds;   // exceptional band
+	const tens = roll.tens; //event band
+	const ones = roll.ones; // event band
+	let rollDiv = document.createElement("div");
+	let colorThousands = resolved.yes ? color.success : color.fail; // green/red
+	let colorHundreds = resolved.exceptional
+		? (resolved.exceptional === Exceptional.Major ? color.major : color.minor)
+		: colorThousands;
+	let colorTensOnes = resolved.eventTriggered ? color.event : colorThousands;
+	let thousandsSpan = document.createElement("span");
+	thousandsSpan.textContent = String(thousands);
+	thousandsSpan.style.color = colorThousands;
+	let hundredSpan = document.createElement("span");
+	hundredSpan.textContent = String(hundreds);
+	hundredSpan.style.color = colorHundreds;
+	let tensSpan = document.createElement("span");
+	tensSpan.textContent = String(tens);
+	if (resolved.exceptional && !resolved.eventTriggered) {
+		tensSpan.style.color = colorHundreds;
+		colorTensOnes = colorHundreds;
+	} else {
+		tensSpan.style.color = colorTensOnes;
+	}
+	let onesSpan = document.createElement("span");
+	onesSpan.textContent = String(ones);
+	onesSpan.style.color = colorTensOnes;
+	rollDiv.append(thousandsSpan, hundredSpan, tensSpan, onesSpan);
+	return rollDiv;
+}
 
 export class MythicView extends ItemView {
 	plugin: MGE;
-	results: { text: string; tooltip?: string }[] = [];
+	results: { text: string; tooltip?: HTMLDivElement }[] = [];
 	resultsContainer: HTMLElement;
 	private listEl: HTMLUListElement;
 	private cfSelect!: HTMLSelectElement;
@@ -200,7 +244,7 @@ export class MythicView extends ItemView {
   <div style="color:#E57373"><b>No:</b> ${(odds.no * 100).toFixed(2)}%</div>
   <div style="color:#EF5350"><b>(Minor) No:</b> ${(odds.excMinorNo * 100).toFixed(2)}%</div>
   <div style="color:#C62828"><b>(Major) No:</b> ${(odds.excMajorNo * 100).toFixed(2)}%</div>
-  <div style="color:#26C6DA"><b>Event:</b> ${(odds.event * 100).toFixed(2)}%</div>
+  <div style="color:#26C6DA"><b>Event:</b> ${(odds.event * 100).toFixed(0)}%</div>
 `;
 
 
@@ -219,7 +263,7 @@ export class MythicView extends ItemView {
 	}
 
 
-	storeResult(result: string | { text: string; tooltip?: string }) {
+	storeResult(result: string | { text: string; tooltip?: HTMLDivElement }) {
 		let to_copy: string;
 		if (typeof result === "string") {
 			console.log();
@@ -258,6 +302,7 @@ export class MythicView extends ItemView {
 		emptyStateEl.textContent = 'No results available.';
 		this.listEl.appendChild(emptyStateEl);
 	}
+
 
 	drawFateCheck(settings: ChaosEngineSettings) {
 		const fateCheckContainer = document.createElement('div');
@@ -320,9 +365,8 @@ export class MythicView extends ItemView {
 				cf: this.cfSelect.value as ChaosFactor,
 				tension: this.trendSelect.value as Tension,
 			};
-			let mainRoll = RollResult.rollD1000();
-			let shadowRoll = RollResult.rollD1000();
-			let resolved_roll = RollResolver.resolveRoll(state, mainRoll, shadowRoll);
+			let mainRoll = RollResult.rollD10000();
+			let resolved_roll = RollResolver.resolveRoll(state, mainRoll);
 			const resultText = formatExceptionalResult(resolved_roll.exceptional, resolved_roll.yes);
 			let output = resultText;
 
@@ -330,17 +374,65 @@ export class MythicView extends ItemView {
 			if (resolved_roll.eventTriggered) {
 				output += "  " + this.eventRoll();
 			}
-			let exceptionalThreshold = RollResult.exceptionalThreshold(state,resolved_roll.yes);
+			let exceptionalThreshold = RollResult.exceptionalThreshold(state, resolved_roll.yes);
+			let roll_num = mainRoll.to10_000();
+			let rollDiv = formatColoredRoll(mainRoll, resolved_roll);
 
+			let tooltipDiv = document.createElement("div");
+			const debugLine1 = document.createElement("div");
 
-			const debugTooltip =
-				`${state.cf} ${state.tension} ${state.probability}
-Main: (${mainRoll.toInt()}) Shadow: (${shadowRoll.toInt()})
-Exceptional: ${resolved_roll.exceptional}
-Success Threshold: ${ProbabilityUtils.getSuccessThreshold(state)}
-Exceptional Thresholds ${exceptionalThreshold.major}, ${exceptionalThreshold.minor}
-`;
-			this.storeResult({ text: output, tooltip: debugTooltip });
+			const cfSpan = document.createElement("span");
+			if (state.cf === ChaosFactor.Stable) { cfSpan.style.color = color.stable } else {
+				cfSpan.style.color = ChaosFactorUtils.isChaotic(state.cf) ? color.choatic : color.calm;
+			}
+			cfSpan.style.fontWeight = "bold";
+			cfSpan.textContent = state.cf;
+
+			const tensionSpan = document.createElement("span");
+			if (state.tension === Tension.Neutral) { tensionSpan.style.color = color.stable } else {
+				tensionSpan.style.color = TensionUtils.isTense(state.tension) ? color.tense : color.coasting;
+			}
+			tensionSpan.style.fontWeight = "bold";
+			tensionSpan.style.marginLeft = "6px";
+			tensionSpan.textContent = state.tension;
+
+			const probSpan = document.createElement("span");
+			if (state.probability === Probability._5050) {
+				probSpan.style.color = color.stable;
+			} else {
+				probSpan.style.color = ProbabilityUtils.isHard(state.probability) ? color.hard : color.easy;
+			}
+			probSpan.style.fontWeight = "bold";
+			probSpan.style.marginLeft = "6px";
+			probSpan.textContent = state.probability;
+
+			let successThreshold = ProbabilityUtils.getSuccessThreshold(state);
+			debugLine1.append(cfSpan, tensionSpan, probSpan);
+			tooltipDiv.appendChild(debugLine1);
+			tooltipDiv.appendChild(rollDiv);
+			if (resolved_roll.exceptional) {
+				const exceptionalSpan = document.createElement("span");
+				exceptionalSpan.textContent = `Exceptional:`;
+				exceptionalSpan.style.color = (roll_num >= successThreshold) ? color.success : color.fail;
+				const exceptionalMinMajSpan = document.createElement("span");
+				exceptionalMinMajSpan.style.color = (resolved_roll.exceptional === Exceptional.Major) ? color.major : color.minor;
+				exceptionalMinMajSpan.textContent = ` ${resolved_roll.exceptional}`;
+				tooltipDiv.append(exceptionalSpan, exceptionalMinMajSpan);
+			}
+			const successThresholDiv = document.createElement("div");
+			successThresholDiv.textContent = `Success Threshold: ${successThreshold}`;
+			tooltipDiv.appendChild(successThresholDiv);
+			const exceptionalThresholDiv = document.createElement("div");
+			tooltipDiv.appendChild(exceptionalThresholDiv);
+			exceptionalThresholDiv.textContent = `Exceptional Threshold: +${exceptionalThreshold.major}-${exceptionalThreshold.minor}`;
+			if (resolved_roll.eventTriggered) {
+				let eventDiv = document.createElement("div");
+				eventDiv.textContent = `Event!`;
+				eventDiv.style.color = color.event;
+				tooltipDiv.appendChild(eventDiv);
+
+			}
+			this.storeResult({ text: output, tooltip: tooltipDiv });
 			this.drawList();
 		});
 
@@ -469,7 +561,7 @@ Exceptional Thresholds ${exceptionalThreshold.major}, ${exceptionalThreshold.min
 		const inputContainer = this.containerEl.querySelector(displayId) as HTMLInputElement;
 		inputContainer.value = toInputNum.toString()
 	}
-	addToResults(result: string, i: number, tooltip?: string) {
+	addToResults(result: string, i: number, tooltip?: HTMLDivElement) {
 		const itemEl = document.createElement('li');
 		const textEl = document.createElement('span');
 		textEl.style.fontWeight = 'bold';
@@ -536,10 +628,8 @@ Exceptional Thresholds ${exceptionalThreshold.major}, ${exceptionalThreshold.min
 		});
 		itemEl.appendChild(deleteButton);
 		if (tooltip) {
-			const tooltipDiv = document.createElement("div");
-			tooltipDiv.className = "result-tooltip";
-			tooltipDiv.textContent = tooltip;
-			itemEl.appendChild(tooltipDiv);
+			tooltip.className = "result-tooltip";
+			itemEl.appendChild(tooltip);
 		}
 
 		this.listEl.appendChild(itemEl);

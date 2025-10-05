@@ -203,6 +203,15 @@ button.tooltip-enabled:hover::before {
   transition: opacity 0.15s ease-in-out;
 }
 
+.glow-success  { color: #00FF00; text-shadow: 0 0 3px #00FF00AA; }
+.glow-fail     { color: #FF0000; text-shadow: 0 0 3px #FF0000AA; }
+.glow-event    { color: #9B30FF; text-shadow: 0 0 8px #9B30FFAA; }
+.glow-major    { color: #FFD700; text-shadow: 0 0 6px #FFD700AA; }
+.glow-minor    { color: #E6A100; text-shadow: 0 0 6px #E6A100AA; }
+.result-tooltip div {
+  margin: 0;
+  line-height: 1.2;
+}
 .my-list-item:hover .result-tooltip {
   display: block;
   opacity: 1;
