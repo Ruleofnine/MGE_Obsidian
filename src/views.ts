@@ -190,26 +190,31 @@ export class MythicView extends ItemView {
 			tension: this.trendSelect.value as Tension,
 		};
 	}
-
 	updateTooltip() {
 		const state = this.getCurrentState();
 		const odds = rollOdds(state);
-
 		const tooltipHtml = `
-		<div style="color:#4CAF50"><b>Yes:</b> ${(odds.yes * 100).toFixed(2)}%</div>
-		<div style="color:#F44336"><b>No:</b> ${(odds.no * 100).toFixed(2)}%</div>
-		<div style="color:#FFD700"><b>(Major) Yes:</b> ${((odds.excMajorYes) * 100).toFixed(2)}%</div>
-		<div style="color:#FFD700"><b>(Minor) Yes:</b> ${((odds.excMinorYes) * 100).toFixed(2)}%</div>
-		<div style="color:#FF9800"><b>(Major) No:</b> ${((odds.excMajorNo) * 100).toFixed(2)}%</div>
-		<div style="color:#FF9800"><b>(Minor) No:</b> ${((odds.excMinorNo) * 100).toFixed(2)}%</div>
-		<div style="color:#00BCD4"><b>Event:</b> ${(odds.event * 100).toFixed(2)}%</div>
-	`;
+  <div style="color:#FFD54F"><b>(Major) Yes:</b> ${(odds.excMajorYes * 100).toFixed(2)}%</div>
+  <div style="color:#C0CA33"><b>(Minor) Yes:</b> ${(odds.excMinorYes * 100).toFixed(2)}%</div>
+  <div style="color:#81C784"><b>Yes:</b> ${(odds.yes * 100).toFixed(2)}%</div>
+  <div style="color:#E57373"><b>No:</b> ${(odds.no * 100).toFixed(2)}%</div>
+  <div style="color:#EF5350"><b>(Minor) No:</b> ${(odds.excMinorNo * 100).toFixed(2)}%</div>
+  <div style="color:#C62828"><b>(Major) No:</b> ${(odds.excMajorNo * 100).toFixed(2)}%</div>
+  <div style="color:#26C6DA"><b>Event:</b> ${(odds.event * 100).toFixed(2)}%</div>
+`;
+
+
 
 		if (this.rollButton) {
-			const tooltip = this.rollButton.querySelector(".tooltip") as HTMLElement;
-			if (tooltip) {
-				tooltip.innerHTML = tooltipHtml;
-			}
+			// Remove old tooltip if it exists
+			const existing = this.rollButton.querySelector('.mge-tooltip');
+			if (existing) existing.remove();
+
+			// Create new tooltip inside the button
+			const tooltipDiv = document.createElement('div');
+			tooltipDiv.className = 'roll-tooltip';
+			tooltipDiv.innerHTML = tooltipHtml;
+			this.rollButton.appendChild(tooltipDiv);
 		}
 	}
 
@@ -282,13 +287,11 @@ export class MythicView extends ItemView {
 		checkbox.checked = settings.advanced ?? false; // restore saved
 		// Roll button
 		const rollButton = document.createElement('button');
+		rollButton.setAttribute('data-title', 'Run Fate Check');
 		const diceIcon = document.createElement('i');
 		diceIcon.className = 'fa-solid fa-dice-d20 icon';
 		rollButton.appendChild(diceIcon);
-		const tooltip = document.createElement("div");
-		tooltip.className = "tooltip";
-		rollButton.appendChild(tooltip);
-		rollButton.classList.add("tooltip-enabled", "right-button");
+		rollButton.classList.add("right-button", "roll-button");
 		this.rollButton = rollButton;
 		// Save on change
 		dropdown.addEventListener("change", async () => {
@@ -319,7 +322,7 @@ export class MythicView extends ItemView {
 			};
 			let mainRoll = RollResult.rollD1000();
 			let shadowRoll = RollResult.rollD1000();
-			let resolved_roll = RollResolver.resolveRoll(state, shadowRoll, mainRoll);
+			let resolved_roll = RollResolver.resolveRoll(state, mainRoll, shadowRoll);
 			const resultText = formatExceptionalResult(resolved_roll.exceptional, resolved_roll.yes);
 			let output = resultText;
 
@@ -327,14 +330,16 @@ export class MythicView extends ItemView {
 			if (resolved_roll.eventTriggered) {
 				output += "  " + this.eventRoll();
 			}
+			let exceptionalThreshold = RollResult.exceptionalThreshold(state,resolved_roll.yes);
 
 
 			const debugTooltip =
-				`Main Roll: ${mainRoll.toInt()}
-Shadow Roll: ${shadowRoll.toInt()}
+				`${state.cf} ${state.tension} ${state.probability}
+Main: (${mainRoll.toInt()}) Shadow: (${shadowRoll.toInt()})
+Exceptional: ${resolved_roll.exceptional}
 Success Threshold: ${ProbabilityUtils.getSuccessThreshold(state)}
-Chaos Factor: ${state.cf}
-Tension: ${state.tension}`;
+Exceptional Thresholds ${exceptionalThreshold.major}, ${exceptionalThreshold.minor}
+`;
 			this.storeResult({ text: output, tooltip: debugTooltip });
 			this.drawList();
 		});
@@ -532,8 +537,8 @@ Tension: ${state.tension}`;
 		itemEl.appendChild(deleteButton);
 		if (tooltip) {
 			const tooltipDiv = document.createElement("div");
-			tooltipDiv.className = "mge-tooltip";
-			tooltipDiv.textContent = tooltip.replace(/\\n/g, "\n");
+			tooltipDiv.className = "result-tooltip";
+			tooltipDiv.textContent = tooltip;
 			itemEl.appendChild(tooltipDiv);
 		}
 

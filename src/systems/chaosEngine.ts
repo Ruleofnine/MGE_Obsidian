@@ -230,7 +230,7 @@ export class RollResult {
 		const roll = this.toInt();
 		return roll < successThreshold && (successThreshold - roll) < 50;
 	}
-	static eventTreshold(state: OracleState): number {
+	static eventThreshold(state: OracleState): number {
 		let window = 10;
 		const cfWindowMod = (() => {
 			switch (state.cf) {
@@ -261,7 +261,7 @@ export class RollResult {
 	hasEvent(state: OracleState, successThreshold: number): boolean {
 		const roll = this.toInt();
 		const distance = Math.abs(roll - successThreshold);
-		let window = RollResult.eventTreshold(state);
+		let window = RollResult.eventThreshold(state);
 		return distance <= window;
 	}
 
@@ -322,7 +322,7 @@ export namespace RollResolver {
 			exceptional = shadowRollResult.isExceptional(state, yes);
 		}
 		const but = rollResult.hasBut(state, successThreshold);
-		const eventTriggered = rollResult.hasEvent(state, successThreshold);
+		const eventTriggered = shadowRollResult.hasEvent(state, successThreshold);
 		return { exceptional, yes, but, eventTriggered };
 	}
 }
@@ -372,7 +372,7 @@ export function rollOdds(state: OracleState) {
 
 
 	// --- EVENT WINDOW ---
-	const eventWindow = RollResult.eventTreshold(state);
+	const eventWindow = RollResult.eventThreshold(state);
 	const eventLow = Math.max(successThreshold - eventWindow, 0);
 	const eventHigh = Math.min(successThreshold + eventWindow, 999);
 	const eventBase = rangeChance(eventLow, eventHigh);
